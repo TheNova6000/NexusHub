@@ -10,6 +10,22 @@ NexusHub is a FastAPI-based backend for knowledge discovery and semantic search.
 - **FastAPI Backend**: RESTful API with CORS support
 - **SQLite Integration**: Efficient storage with vector search capabilities
 
+## Project Structure
+
+- `api.py`: Main FastAPI application with REST endpoints
+- `discovery.py`: Discovery and search functionality
+- `embeddings.py`: Text embedding generation and processing
+- `fix_embeding.py`: Embedding fixes and utilities
+- `graph_analysis.py`: Graph analysis and network processing
+- `knowledge.py`: Knowledge base management
+- `meta_crawl.py`: Metadata crawling from external sources
+- `index.html`: Web interface
+- `requirements.txt`: Python dependencies
+- `run`: Execution script
+- `try.py`: Test or experimental code
+- `.gitignore`: Git ignore rules
+- **SQLite Integration**: Efficient storage with vector search capabilities
+
 ## Installation
 
 1. Clone the repository:
