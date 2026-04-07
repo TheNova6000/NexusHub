@@ -1,0 +1,10 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+httpx>=0.27.0
+numpy>=1.26.0
+sqlite-vec>=0.1.1
+ 
+# Optional — required for semantic vector search
+# If not installed, the backend falls back to full-text / LIKE search
+sentence-transformers>=2.7.0
+ 

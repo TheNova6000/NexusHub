@@ -1,0 +1,198 @@
+# NexusHub Backend
+
+FastAPI backend for the NexusHub academic research discovery engine.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Run (databases must be in the same directory, or set env vars)
+uvicorn main:app --reload --port 8000
+
+# 3. Open index.html in your browser
+```
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `NEXUS_DB` | `nexushub.db` | Path to the main nexushub SQLite database |
+| `KNOWLEDGE_DB` | `knowledge.db` | Path to the embeddings database |
+| `OPENALEX_EMAIL` | `nexushub@example.com` | Email for OpenAlex polite pool (faster rate limits) |
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/search?q=&limit=50` | Semantic / FTS paper search |
+| GET | `/paper/{id}?enrich=true` | Full paper detail with auto-enrichment |
+| GET | `/paper/{id}/graph?depth=2&limit=50` | Citation graph |
+| GET | `/paper/{id}/bridges?limit=6` | Cross-domain bridge papers |
+| GET | `/paper/{id}/enrich?force=false` | Explicit OpenAlex enrichment |
+| GET | `/communities` | All research communities |
+| GET | `/community/{id}/papers?limit=20` | Papers in a community |
+| GET | `/trending?limit=30` | Top papers by PageRank |
+| GET | `/fields` | Field overlap matrix |
+| GET | `/bridge-concepts?limit=20` | Bridge concepts across fields |
+| GET | `/evolution?concept=&top_n=10` | Concept growth over time |
+| GET | `/cache/stats` | Enrichment cache statistics |
+| GET | `/health` | Health check |
+
+---
+
+## Database Schema (nexushub.db)
+
+The backend expects these tables — create them when building your DB pipeline:
+
+```sql
+-- Core
+CREATE TABLE papers (
+    paper_id        TEXT PRIMARY KEY,
+    title           TEXT,
+    doi             TEXT,
+    year            INTEGER,
+    journal         TEXT,
+    citation_count  INTEGER,
+    abstract        TEXT,
+    community       INTEGER
+);
+
+CREATE TABLE authors (
+    author_id  TEXT PRIMARY KEY,
+    name       TEXT
+);
+
+CREATE TABLE paper_authors (
+    paper_id   TEXT REFERENCES papers,
+    author_id  TEXT REFERENCES authors,
+    position   INTEGER
+);
+
+CREATE TABLE concepts (
+    concept_id  TEXT PRIMARY KEY,
+    name        TEXT,
+    level       INTEGER,    -- 0 = top-level field
+    wikidata    TEXT
+);
+
+CREATE TABLE paper_concepts (
+    paper_id    TEXT REFERENCES papers,
+    concept_id  TEXT REFERENCES concepts,
+    score       REAL
+);
+
+CREATE TABLE citations (
+    paper_id        TEXT REFERENCES papers,
+    cited_paper_id  TEXT
+);
+
+CREATE TABLE paper_scores (
+    paper_id        TEXT PRIMARY KEY REFERENCES papers,
+    pagerank        REAL,
+    hub_score       REAL,
+    authority_score REAL
+);
+
+CREATE TABLE communities (
+    community_id  INTEGER PRIMARY KEY,
+    label         TEXT,
+    top_concepts  TEXT,   -- JSON array of strings
+    paper_count   INTEGER,
+    avg_year      REAL
+);
+
+CREATE TABLE bridge_concepts (
+    concept_id   TEXT PRIMARY KEY,
+    name         TEXT,
+    fields       TEXT,     -- JSON array of field names
+    field_count  INTEGER,
+    bridge_score REAL
+);
+
+CREATE TABLE field_overlap (
+    field_a         TEXT,
+    field_b         TEXT,
+    shared_concepts INTEGER,
+    overlap_score   REAL,
+    PRIMARY KEY (field_a, field_b)
+);
+
+CREATE TABLE concept_evolution (
+    concept_id   TEXT REFERENCES concepts,
+    year         INTEGER,
+    paper_count  INTEGER,
+    avg_citations REAL,
+    PRIMARY KEY (concept_id, year)
+);
+
+-- Written by the backend automatically:
+CREATE TABLE enriched_cache (
+    paper_id    TEXT PRIMARY KEY,
+    fetched_at  INTEGER,
+    success     INTEGER DEFAULT 0,
+    oa_data     TEXT    -- JSON blob from OpenAlex
+);
+```
+
+## knowledge.db Schema
+
+```sql
+-- Raw blobs (float32, little-endian)
+CREATE TABLE paper_embeddings (
+    paper_id   TEXT PRIMARY KEY,
+    embedding  BLOB
+);
+
+-- sqlite-vec virtual table for KNN search
+CREATE VIRTUAL TABLE vec_papers USING vec0(
+    paper_id TEXT PRIMARY KEY,
+    embedding FLOAT[384]   -- dimension matches your model
+);
+```
+
+## Vector Search
+
+If `sentence-transformers` is installed, `/search` uses:
+- Model: `all-MiniLM-L6-v2` (384-dim)
+- KNN via `sqlite-vec` cosine distance on `vec_papers`
+
+Without it, the backend falls back to:
+1. FTS5 full-text search on `papers_fts` (if the virtual table exists)
+2. Plain `LIKE` search on `title` and `abstract`
+
+## OpenAlex Enrichment
+
+`/paper/{id}` automatically enriches meta-only papers:
+1. Checks `enriched_cache` — served instantly if found
+2. Fetches from `https://api.openalex.org/works/{id}`
+3. Reconstructs abstract from inverted index
+4. Caches result in `enriched_cache` forever (use `force=true` to re-fetch)
+
+Set `OPENALEX_EMAIL` to your email to get into the OpenAlex polite pool
+(10 req/s instead of 100k/day limit).
+
+
+
+
+
+
+dir /b /s activate.bat 2>nul
+
+
+dir /b
+nexus_env\Scripts\activate.bat
+
+
+ & "d:\bsk\term 3\Discovery\nexus_env\Scripts\Activate.ps1"
+
+uvicorn api:app --reload --port 8000
+
+http://127.0.0.1:8000/app/index.html

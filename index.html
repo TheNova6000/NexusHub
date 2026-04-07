@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusHub</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Syne+Mono&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* ─── TOKENS ─────────────────────────────────────────────────── */
+:root {
+  --ink:     #0e0d0b;
+  --ink1:    #161411;
+  --ink2:    #1e1c18;
+  --ink3:    #272420;
+  --ink4:    #322f2a;
+  --wire:    rgba(255,255,255,0.07);
+  --wire2:   rgba(255,255,255,0.12);
+  --wire3:   rgba(255,255,255,0.20);
+  --paper:   #f0ece2;
+  --paper2:  #c8c2b0;
+  --paper3:  #807870;
+  --paper4:  #504840;
+  --blood:   #ff4d1c;
+  --blood2:  #ff6e44;
+  --blood-d: rgba(255,77,28,0.12);
+  --ice:     #b8d8e8;
+  --leaf:    #6ec99a;
+  --gold:    #d4a840;
+  --r: 6px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  /* Subtle dot grid */
+  background-image: radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ─── SCROLL ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background: var(--ink); }
+::-webkit-scrollbar-thumb { background: var(--ink4); border-radius: 3px; }
+
+/* ─── TOPBAR ──────────────────────────────────────────────────── */
+#bar {
+  position: fixed; top:0; left:0; right:0; height:54px;
+  background: rgba(14,13,11,0.92);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-bottom: 1px solid var(--wire);
+  z-index: 900;
+  display: flex; align-items: center;
+}
+
+.bar-in {
+  max-width: 1460px; margin:0 auto; width:100%;
+  display: flex; align-items: center; gap:18px; padding:0 28px;
+}
+
+.logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--paper);
+  cursor: pointer;
+  flex-shrink: 0;
+  letter-spacing: -0.3px;
+  display: flex; align-items: center; gap:10px;
+}
+
+.logo-mark {
+  width: 22px; height: 22px;
+  border: 2px solid var(--blood);
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.logo-mark::after {
+  content:'';
+  position: absolute; inset:3px;
+  background: var(--blood);
+  border-radius: 50%;
+  animation: hb 3s ease-in-out infinite;
+}
+
+@keyframes hb {
+  0%,100% { transform: scale(1); opacity:1; }
+  50%      { transform: scale(0.5); opacity:0.5; }
+}
+
+.logo em { color: var(--blood); font-style: normal; }
+
+.search-wrap {
+  flex:1; max-width:520px; display:flex;
+  border: 1px solid var(--wire2);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.search-wrap:focus-within { border-color: var(--blood); }
+
+.s-input {
+  flex:1;
+  background: var(--ink2);
+  border: none; outline: none;
+  padding: 8px 16px;
+  color: var(--paper);
+  font-family: 'Syne Mono', monospace;
+  font-size: 13px;
+}
+.s-input::placeholder { color: var(--paper4); }
+
+.s-btn {
+  background: var(--blood);
+  border: none;
+  padding: 8px 20px;
+  color: #fff;
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.s-btn:hover { background: var(--blood2); }
+
+.bar-nav { display:flex; gap:2px; margin-left:auto; }
+
+.nb {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--paper3);
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .2s;
+}
+.nb:hover { color: var(--paper2); border-color: var(--wire2); background: var(--ink2); }
+.nb.on  { color: var(--blood); border-color: rgba(255,77,28,.3); background: var(--blood-d); }
+
+/* ─── LAYOUT ──────────────────────────────────────────────────── */
+#app {
+  max-width: 1460px; margin: 0 auto;
+  padding: 0 28px; padding-top: 54px;
+}
+
+/* ─── HOME ────────────────────────────────────────────────────── */
+#hv { display:flex; gap:28px; padding:36px 0; }
+#hv.dn { display:none; }
+.h-main { flex:1; min-width:0; }
+.h-side { width:292px; flex-shrink:0; }
+
+/* Hero */
+.hero {
+  position: relative;
+  padding: 44px 48px;
+  margin-bottom: 20px;
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  background: var(--ink1);
+  overflow: hidden;
+}
+
+/* Big editorial rule */
+.hero::before {
+  content: '';
+  position: absolute; top:0; left:0;
+  width: 4px; height: 100%;
+  background: var(--blood);
+}
+
+.hero-label {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--blood);
+  margin-bottom: 20px; padding-left: 2px;
+}
+
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1.04;
+  letter-spacing: -1px;
+  color: var(--paper);
+  margin-bottom: 16px;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--blood);
+}
+
+.hero-sub {
+  font-size: 14px; font-weight: 400;
+  color: var(--paper3); max-width: 440px;
+  margin-bottom: 30px; line-height: 1.75;
+}
+
+.hero-search {
+  display: flex; max-width: 520px;
+  border: 1px solid var(--wire2);
+  border-radius: var(--r); overflow: hidden;
+  transition: border-color .2s;
+}
+.hero-search:focus-within { border-color: var(--blood); }
+
+.hero-search input {
+  flex:1; background: var(--ink2);
+  border:none; outline:none;
+  padding: 13px 18px;
+  color: var(--paper);
+  font-family: 'Syne Mono', monospace;
+  font-size: 13px;
+}
+.hero-search input::placeholder { color: var(--paper4); }
+
+.hero-search button {
+  background: var(--blood); border:none;
+  padding: 13px 28px;
+  color: #fff;
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; transition: background .2s;
+  flex-shrink: 0;
+}
+.hero-search button:hover { background: var(--blood2); }
+
+.chips { margin-top:16px; display:flex; flex-wrap:wrap; gap:5px; }
+
+.chip {
+  padding: 3px 10px;
+  background: var(--ink3);
+  border: 1px solid var(--wire);
+  border-radius: 3px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper3);
+  cursor: pointer; transition: all .18s;
+}
+.chip:hover { border-color: var(--blood); color: var(--blood); background: var(--blood-d); }
+
+/* Stats row */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; margin-bottom: 20px;
+  background: var(--ink1);
+}
+
+.stat {
+  padding: 14px 18px;
+  border-right: 1px solid var(--wire);
+  position: relative;
+}
+.stat:last-child { border-right: none; }
+.stat::after {
+  content: '';
+  position: absolute; bottom:0; left:18px; right:18px; height:1px;
+  background: var(--wire);
+}
+
+.stat-n {
+  display: block;
+  font-family: 'Playfair Display', serif;
+  font-size: 26px; font-weight: 700;
+  color: var(--blood); letter-spacing: -0.5px;
+}
+.stat-l {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+  text-transform: uppercase; letter-spacing: 1.5px;
+  margin-top: 1px;
+}
+
+/* Cards */
+.card {
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; background: var(--ink1);
+  margin-bottom: 18px;
+}
+
+.card-hdr {
+  padding: 9px 18px;
+  background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  display: flex; align-items:center; justify-content:space-between;
+}
+
+.card-hdr-l {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+  text-transform: uppercase; letter-spacing: 2px;
+}
+
+.card-hdr-r {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--blood);
+  cursor: pointer; transition: color .15s;
+}
+.card-hdr-r:hover { color: var(--blood2); }
+
+.card-body { padding: 16px 18px; }
+
+/* Sidebar boxes */
+.sbox {
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; margin-bottom:16px;
+  background: var(--ink1);
+}
+.sbox-hdr {
+  padding: 9px 15px;
+  background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+  text-transform: uppercase; letter-spacing: 2px;
+}
+.srow {
+  display: flex; align-items: flex-start; gap:10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--wire);
+  cursor: pointer; transition: all .15s;
+}
+.srow:last-child { border-bottom:none; }
+.srow:hover { background: var(--ink3); padding-left:18px; }
+
+.srk {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px; font-weight: 700;
+  color: var(--paper4); width:20px; flex-shrink:0; line-height:1.2;
+}
+.srk.g { color: var(--gold); }
+.srk.s { color: var(--paper3); }
+.srk.b { color: #7a5c2a; }
+
+.si2 { flex:1; min-width:0; }
+.si2-t {
+  font-size: 12px; font-weight: 500;
+  color: var(--paper2); line-height:1.3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  margin-bottom:1px;
+}
+.si2-m {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+}
+
+/* ─── TAGS ────────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex; align-items:center;
+  padding: 2px 7px; border-radius: 3px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px;
+}
+.tag-y { background: rgba(184,216,232,0.08); color: var(--ice); border: 1px solid rgba(184,216,232,0.18); }
+.tag-c { background: rgba(110,201,154,0.08); color: var(--leaf); border: 1px solid rgba(110,201,154,0.18); }
+.tag-m { background: var(--blood-d); color: var(--blood2); border: 1px solid rgba(255,77,28,0.22); }
+.tag-f { background: rgba(212,168,64,0.08); color: var(--gold); border: 1px solid rgba(212,168,64,0.18); }
+
+/* ─── SEARCH RESULTS ──────────────────────────────────────────── */
+#sv { display:none; padding:32px 0; }
+#sv.on { display:flex; gap:28px; }
+#s-left { flex:1; min-width:0; }
+
+.r-hdr {
+  margin-bottom:22px; padding-bottom:16px;
+  border-bottom: 1px solid var(--wire);
+}
+.r-hdr h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px; font-weight: 700;
+  color: var(--paper); margin-bottom:4px;
+}
+.r-hdr p {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4); letter-spacing:.4px;
+}
+
+.ri {
+  padding: 18px 0; border-bottom: 1px solid var(--wire);
+  cursor: pointer; transition: padding-left .15s;
+}
+.ri:hover { padding-left: 10px; }
+.ri:hover .ri-t { color: var(--blood); }
+
+.ri-t {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 400;
+  color: var(--ice); margin-bottom:5px;
+  transition: color .15s; line-height:1.25;
+}
+.ri-by {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4);
+  margin-bottom:8px; letter-spacing:.3px;
+}
+.ri-snip { font-size: 13px; color: var(--paper3); line-height:1.65; font-weight:400; }
+.ri-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+
+#s-right { width:272px; flex-shrink:0; }
+
+.pg { display:flex; gap:4px; margin-top:24px; flex-wrap:wrap; }
+.pb {
+  padding: 5px 11px;
+  background: var(--ink2);
+  border: 1px solid var(--wire);
+  border-radius: 3px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 12px; color: var(--paper4);
+  cursor: pointer; transition: all .15s;
+}
+.pb:hover { border-color: var(--wire2); color: var(--paper2); }
+.pb.on { background: var(--blood-d); border-color: rgba(255,77,28,.35); color: var(--blood); }
+
+/* ─── PAPER VIEW ──────────────────────────────────────────────── */
+#pv { display:none; padding:32px 0; }
+#pv.on { display:flex; gap:28px; }
+#p-main { flex:1; min-width:0; }
+
+.bc {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4);
+  margin-bottom: 20px;
+  display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+}
+.bc a { color: var(--ice); cursor:pointer; text-decoration:none; transition: color .15s; }
+.bc a:hover { color: var(--blood); }
+.bc .sep { color: var(--paper4); }
+
+/* article */
+.article {
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; background: var(--ink1);
+  margin-bottom: 22px;
+}
+
+.art-title-block {
+  padding: 32px 42px 26px;
+  border-bottom: 1px solid var(--wire);
+  position: relative;
+  background: linear-gradient(180deg, var(--ink2) 0%, var(--ink1) 100%);
+}
+
+/* Orange left stripe */
+.art-title-block::before {
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width: 3px; background: var(--blood);
+}
+
+.art-kicker {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; letter-spacing: 2.5px;
+  text-transform: uppercase; color: var(--blood);
+  margin-bottom: 14px;
+}
+
+.art-title-block h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 30px; font-weight: 700;
+  color: var(--paper); line-height:1.25;
+  margin-bottom: 14px; letter-spacing: -.3px;
+}
+
+.art-meta { display:flex; flex-wrap:wrap; gap:6px; margin-bottom: 8px; }
+.art-journal {
+  font-family: 'Syne Mono', monospace;
+  font-size: 12px; color: var(--paper4);
+}
+
+.art-body { padding: 36px 42px; }
+
+.psec { margin-bottom: 34px; }
+
+.psec h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 21px; font-weight: 400;
+  font-style: italic;
+  color: var(--paper);
+  padding-bottom: 9px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--wire);
+  display: flex; align-items: center; gap: 10px;
+}
+
+.psec h2 .h2-badge {
+  font-family: 'Syne Mono', monospace;
+  font-style: normal; font-size: 10px;
+  color: var(--blood); letter-spacing: 1px;
+  padding: 2px 7px;
+  border: 1px solid rgba(255,77,28,.3);
+  border-radius: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.abst {
+  font-size: 14px; line-height: 1.9;
+  color: var(--paper2); font-weight: 400;
+}
+
+.cg { display:flex; flex-wrap:wrap; gap:6px; }
+.cl {
+  padding: 5px 12px;
+  background: var(--ink3);
+  border: 1px solid var(--wire);
+  border-radius: 3px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 12px; color: var(--ice);
+  cursor: pointer; transition: all .18s;
+}
+.cl:hover { border-color: var(--blood); color: var(--blood); background: var(--blood-d); }
+
+.al { display:flex; flex-wrap:wrap; gap:6px; }
+.ac {
+  padding: 4px 12px;
+  background: var(--ink3);
+  border: 1px solid var(--wire);
+  border-radius: 20px;
+  font-size: 12px; color: var(--paper2);
+}
+
+/* Graph */
+.gsec {
+  border: 1px solid var(--wire);
+  border-radius: var(--r); overflow: hidden;
+  background: var(--ink);
+}
+.g-hdr {
+  padding: 9px 16px; background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.g-hdr h3 {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper3);
+  text-transform: uppercase; letter-spacing: 1.5px;
+}
+.g-hdr span {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4);
+}
+#pgw { height: 360px; position:relative; }
+#pgw svg { width:100%; height:100%; }
+.g-leg {
+  position: absolute; bottom:12px; left:14px;
+  display:flex; gap:14px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+}
+.ld { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
+
+/* Bridges */
+.bc2 {
+  padding: 14px 16px;
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  background: var(--ink2);
+  cursor: pointer; transition: all .2s;
+  margin-bottom: 8px;
+  display:flex; gap:14px; align-items:flex-start;
+}
+.bc2:hover { border-color: var(--blood); background: var(--ink3); transform: translateX(4px); }
+.bc2-af {
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--blood);
+  line-height: 1.9; flex-shrink:0;
+  text-align:center; padding-top:2px;
+  min-width: 85px;
+}
+.bc2-t {
+  font-family: 'Playfair Display', serif;
+  font-size: 15px; color: var(--paper);
+  margin-bottom: 3px; line-height:1.3;
+}
+.bc2-m {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4);
+}
+
+/* Related */
+.reli {
+  padding: 12px 0; border-bottom: 1px solid var(--wire);
+  cursor: pointer; transition: padding-left .15s;
+}
+.reli:last-child { border-bottom:none; }
+.reli:hover { padding-left: 6px; }
+.reli:hover .relt { color: var(--blood); }
+.relt {
+  font-size: 13px; font-weight: 500;
+  color: var(--ice); line-height:1.35;
+  margin-bottom: 2px; transition: color .15s;
+}
+.relm {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4);
+}
+
+/* ─── SIDEBAR ─────────────────────────────────────────────────── */
+#p-side { width:272px; flex-shrink:0; }
+
+.ibox {
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; margin-bottom:14px;
+  background: var(--ink1);
+}
+.ibt {
+  padding: 9px 14px; background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+  text-transform: uppercase; letter-spacing: 2px;
+}
+.itbl { width:100%; border-collapse:collapse; }
+.itbl tr { border-bottom: 1px solid var(--wire); }
+.itbl tr:last-child { border-bottom:none; }
+.itbl td { padding:7px 13px; font-size:12px; vertical-align:top; }
+.itbl td:first-child {
+  color: var(--paper4);
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; width:80px;
+}
+.hl2 {
+  color: var(--blood);
+  font-family: 'Syne Mono', monospace;
+  font-weight: 600;
+}
+.toc { padding:12px 14px; }
+.tocl { list-style:none; }
+.toci { padding:2px 0; }
+.tocln {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--ice);
+  cursor: pointer; transition: color .15s;
+}
+.tocln:hover { color: var(--blood); }
+
+/* ─── NOTICES ─────────────────────────────────────────────────── */
+.notice {
+  background: rgba(255,77,28,0.06);
+  border: 1px solid rgba(255,77,28,0.2);
+  border-left: 3px solid var(--blood);
+  border-radius: 0 var(--r) var(--r) 0;
+  padding: 11px 15px; margin-bottom:18px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 12px; color: var(--paper2);
+}
+.notice strong { color: var(--blood); }
+
+.enrich-bar {
+  background: rgba(184,216,232,0.05);
+  border: 1px solid rgba(184,216,232,0.12);
+  border-left: 3px solid var(--ice);
+  border-radius: 0 var(--r) var(--r) 0;
+  padding: 10px 14px; margin-bottom:16px;
+  font-family: 'Syne Mono', monospace;
+  font-size: 12px; color: var(--paper3);
+  display:flex; align-items:center; gap:10px;
+}
+
+/* ─── TRENDING ────────────────────────────────────────────────── */
+#tv { display:none; padding:32px 0; }
+#tv.on { display:block; }
+
+.tv-hdr { margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--wire); }
+.tv-hdr h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 34px; font-weight: 700;
+  color: var(--paper); margin-bottom:4px;
+}
+.tv-hdr p {
+  font-family: 'Syne Mono', monospace;
+  font-size: 11px; color: var(--paper4); letter-spacing:.5px;
+}
+
+.ttbl {
+  border: 1px solid var(--wire);
+  border-radius: var(--r);
+  overflow: hidden; background: var(--ink1);
+}
+.tth {
+  padding: 10px 20px; background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  font-family: 'Syne Mono', monospace;
+  font-size: 10px; color: var(--paper4);
+  text-transform: uppercase; letter-spacing: 1.5px;
+  display:grid; grid-template-columns:50px 1fr 70px 110px 120px; gap:12px;
+}
+.ttr {
+  display:grid; grid-template-columns:50px 1fr 70px 110px 120px; gap:12px;
+  padding: 12px 20px; border-bottom: 1px solid var(--wire);
+  cursor: pointer; transition: all .15s; align-items:start;
+}
+.ttr:last-child { border-bottom:none; }
+.ttr:hover { background: var(--ink2); padding-left: 24px; }
+
+.tnk {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 700;
+  color: var(--paper4); text-align:center; line-height:1.2;
+}
+.tnk.r1 { color: var(--blood); }
+.tnk.r2 { color: var(--paper3); }
+.tnk.r3 { color: #7a5c2a; }
+.tti2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 15px; color: var(--ice); line-height:1.3;
+}
+.tyr { font-family:'Syne Mono',monospace; font-size:12px; color:var(--paper4); }
+.tct { font-family:'Syne Mono',monospace; font-size:12px; color:var(--leaf); font-weight:600; }
+.tpr { font-family:'Syne Mono',monospace; font-size:11px; color:var(--blood2); }
+
+/* ─── UTILS ───────────────────────────────────────────────────── */
+.lb {
+  display:flex; align-items:center; gap:10px;
+  padding:20px; color:var(--paper4);
+  font-family:'Syne Mono',monospace; font-size:12px;
+}
+.sp {
+  width:14px; height:14px;
+  border:2px solid var(--wire2); border-top-color:var(--blood);
+  border-radius:50%; animation:spin .8s linear infinite; flex-shrink:0;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.tt2 {
+  position:fixed; background:var(--ink3);
+  border:1px solid var(--wire2);
+  border-radius:var(--r); padding:8px 12px;
+  font-family:'Syne Mono',monospace; font-size:11px;
+  color:var(--paper2); pointer-events:none;
+  z-index:9998; max-width:220px;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  display:none; line-height:1.5;
+}
+
+@keyframes fi {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.fi { animation: fi .35s ease both; }
+
+@keyframes stagger {
+  from { opacity:0; transform:translateX(-8px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── TOPBAR ─────────────────────────────────────────────────── -->
+<div id="bar">
+  <div class="bar-in">
+    <div class="logo" onclick="gohome()">
+      <div class="logo-mark"></div>
+      Nexus<em>Hub</em>
+    </div>
+    <div class="search-wrap">
+      <input class="s-input" id="ts" placeholder="search any concept, field, paper…" onkeydown="if(event.key==='Enter')go()">
+      <button class="s-btn" onclick="go()">Search</button>
+    </div>
+    <div class="bar-nav">
+      <button class="nb on" id="nH" onclick="gohome()">Home</button>
+      <button class="nb" id="nT" onclick="gotrend()">Trending</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+
+<!-- ─── HOME ──────────────────────────────────────────────────── -->
+<div id="hv">
+  <div class="h-main">
+
+    <div class="hero">
+      <div class="hero-label">Academic Knowledge Engine · v2.0</div>
+      <h1>Explore the shape<br>of <em>knowledge</em></h1>
+      <p class="hero-sub">Search 84,000+ papers semantically. Map citation networks. Discover cross-domain bridges hidden inside 274,000 nodes of academic graph data.</p>
+      <div class="hero-search">
+        <input id="hi" placeholder="e.g. information entropy, zebrafish locomotion…" onkeydown="if(event.key==='Enter')go()">
+        <button onclick="go()">Explore →</button>
+      </div>
+      <div class="chips">
+        <span class="chip" onclick="qs('information theory')">information theory</span>
+        <span class="chip" onclick="qs('neural networks')">neural networks</span>
+        <span class="chip" onclick="qs('natural selection')">natural selection</span>
+        <span class="chip" onclick="qs('quantum mechanics')">quantum mechanics</span>
+        <span class="chip" onclick="qs('DNA structure')">DNA structure</span>
+        <span class="chip" onclick="qs('climate change')">climate change</span>
+        <span class="chip" onclick="qs('game theory')">game theory</span>
+        <span class="chip" onclick="qs('magnetotactic bacteria')">magnetotactic bacteria</span>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-n">84k+</span><span class="stat-l">Full Papers</span></div>
+      <div class="stat"><span class="stat-n">274k</span><span class="stat-l">Graph Nodes</span></div>
+      <div class="stat"><span class="stat-n">322k</span><span class="stat-l">Citations</span></div>
+      <div class="stat"><span class="stat-n">167</span><span class="stat-l">Communities</span></div>
+      <div class="stat" style="cursor:pointer" onclick="loadCacheStats()" title="Click to refresh"><span class="stat-n" id="cacheStatN">—</span><span class="stat-l">OA Enriched</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-hdr-l">Top Papers · PageRank</span>
+        <span class="card-hdr-r" onclick="gotrend()">VIEW ALL →</span>
+      </div>
+      <div class="card-body" id="fp"><div class="lb"><div class="sp"></div>Loading…</div></div>
+    </div>
+
+  </div>
+  <div class="h-side">
+    <div class="sbox">
+      <div class="sbox-hdr">PageRank Leaders</div>
+      <div id="st2"><div class="lb"><div class="sp"></div></div></div>
+    </div>
+    <div class="sbox">
+      <div class="sbox-hdr">Research Communities</div>
+      <div id="sc2"><div class="lb"><div class="sp"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SEARCH ─────────────────────────────────────────────────── -->
+<div id="sv">
+  <div id="s-left">
+    <div class="r-hdr">
+      <h2 id="rh2">Results</h2>
+      <p id="rp"></p>
+    </div>
+    <div id="rl"></div>
+    <div class="pg" id="pg"></div>
+  </div>
+  <div id="s-right">
+    <div class="sbox">
+      <div class="sbox-hdr">Browse Communities</div>
+      <div id="ssf"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── PAPER ──────────────────────────────────────────────────── -->
+<div id="pv">
+  <div id="p-main">
+    <div class="bc" id="bc"></div>
+    <div id="pc"></div>
+  </div>
+  <div id="p-side">
+    <div id="psc"></div>
+  </div>
+</div>
+
+<!-- ─── TRENDING ──────────────────────────────────────────────── -->
+<div id="tv">
+  <div class="tv-hdr">
+    <h2>Trending Papers</h2>
+    <p>Ranked by PageRank across the full 274,000-node citation graph</p>
+  </div>
+  <div class="ttbl">
+    <div class="tth"><div>Rank</div><div>Title</div><div>Year</div><div>Citations</div><div>PageRank</div></div>
+    <div id="tl"></div>
+  </div>
+</div>
+
+</div><!-- /app -->
+<div class="tt2" id="tt"></div>
+
+<script>
+const A='http://127.0.0.1:8000';
+let H=[],AR=[],PG=0;
+const PS=10;
+
+async function fx(p){const r=await fetch(A+p);if(!r.ok)throw new Error(r.status);return r.json();}
+
+function view(v){
+  ['hv','sv','pv','tv'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(id==='hv') el.classList.toggle('dn',v!=='home');
+    else el.classList.toggle('on',id[0]===v[0]&&id.slice(-1)===v.slice(-1));
+  });
+  // fix for sv/st overlap
+  document.getElementById('sv').classList.toggle('on',v==='search');
+  document.getElementById('pv').classList.toggle('on',v==='paper');
+  document.getElementById('tv').classList.toggle('on',v==='trend');
+  document.getElementById('nH').classList.toggle('on',v==='home');
+  document.getElementById('nT').classList.toggle('on',v==='trend');
+}
+
+function gohome(){view('home');}
+function gotrend(){view('trend');loadTrend();}
+function qs(q){document.getElementById('ts').value=q;document.getElementById('hi').value=q;go();}
+
+async function go(){
+  const q=(document.getElementById('ts').value||document.getElementById('hi').value).trim();
+  if(!q)return;
+  document.getElementById('ts').value=q;
+  view('search');
+  document.getElementById('rh2').textContent='Results for "'+q+'"';
+  document.getElementById('rp').textContent='searching…';
+  document.getElementById('rl').innerHTML='<div class="lb"><div class="sp"></div>Semantic search…</div>';
+  document.getElementById('pg').innerHTML='';
+  try{
+    const d=await fx('/search?q='+encodeURIComponent(q)+'&limit=50');
+    AR=d.results||[];PG=0;
+    document.getElementById('rp').textContent=AR.length+' results · semantic vector search';
+    rpage();lssf();
+  }catch(e){
+    document.getElementById('rl').innerHTML='<div class="lb" style="color:var(--blood)">API offline — start uvicorn on port 8000</div>';
+  }
+}
+
+function rpage(){
+  const items=AR.slice(PG*PS,(PG+1)*PS);
+  const el=document.getElementById('rl'); el.innerHTML='';
+  items.forEach((p,i)=>{
+    const sim=Math.round((p.similarity||0)*100);
+    const snip=p.abstract?p.abstract.slice(0,210)+'...':'No abstract available.';
+    const d=document.createElement('div');
+    d.className='ri fi'; d.style.animationDelay=i*.04+'s';
+    d.innerHTML='<div class="ri-t">'+ex(p.title||'Untitled')+'</div>'
+      +'<div class="ri-by">'+[p.year,p.journal].filter(Boolean).join(' · ')+'</div>'
+      +'<div class="ri-snip">'+ex(snip)+'</div>'
+      +'<div class="ri-tags">'
+      +(p.year?'<span class="tag tag-y">'+p.year+'</span>':'')
+      +(p.citation_count?'<span class="tag tag-c">↑ '+p.citation_count.toLocaleString()+'</span>':'')
+      +(sim?'<span class="tag tag-m">'+sim+'% match</span>':'')
+      +'</div>';
+    d.onclick=()=>opaper(p.paper_id);
+    el.appendChild(d);
+  });
+  const tot=Math.ceil(AR.length/PS);
+  if(tot>1){
+    const pel=document.getElementById('pg'); pel.innerHTML='';
+    for(let i=0;i<tot;i++){
+      const b=document.createElement('button');
+      b.className='pb'+(i===PG?' on':''); b.textContent=i+1;
+      const ii=i; b.onclick=()=>{PG=ii;rpage();};
+      pel.appendChild(b);
+    }
+  }
+}
+
+async function lssf(){
+  const el=document.getElementById('ssf');
+  try{
+    const c=await fx('/communities');
+    el.innerHTML=c.slice(0,8).map(c=>'<div class="srow" onclick="qs(\''+ex(c.label.split('/')[0].trim())+'\')">'
+      +'<div class="si2"><div class="si2-t">'+ex(c.label)+'</div>'
+      +'<div class="si2-m">'+( c.paper_count||0).toLocaleString()+' papers</div></div></div>').join('');
+  }catch(e){}
+}
+
+function ex(s){
+  if(s === null || s === undefined) return '';
+  s = String(s);
+  return s.replace(/&/g,'&amp;')
+          .replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;');
+}
+
+
+async function opaper(pid){
+  view('paper'); window.scrollTo(0,0);
+  document.getElementById('pc').innerHTML='<div class="lb"><div class="sp"></div>Loading paper…</div>';
+  document.getElementById('psc').innerHTML='';
+  document.getElementById('bc').innerHTML='';
+  try{
+    // API auto-enriches meta-only papers from its OpenAlex cache
+    const p = await fx('/paper/'+pid);
+    H = H.filter(h=>h.pid!==pid);
+    H.push({pid, title: p.title});
+    if(H.length > 8) H = H.slice(-8);
+    rbc(p);
+
+    if(p.abstract){
+      // Full paper — either from original crawl or just enriched from OpenAlex
+      rfull(p, p.enriched ? p.enrich_source : null);
+    } else {
+      // API tried to enrich but OpenAlex didn't have it (or enrichment is disabled)
+      // Render skeleton and try a direct client-side fetch as fallback
+      rmeta(p, null);
+      enrichoa(pid);
+    }
+
+    // Load graph, bridges, related in parallel
+    lgraph(pid);
+    lbridges(pid);
+    lrelated(pid, p.title);
+    rsidebar(p);
+  }catch(e){
+    document.getElementById('pc').innerHTML='<div class="lb" style="color:var(--blood)">Error: '+e.message+'</div>';
+  }
+}
+
+function rbc(p){
+  document.getElementById('bc').innerHTML='<a onclick="gohome()">Home</a><span class="sep"> / </span>'
+    +'<a onclick="view(\'search\')">Search</a><span class="sep"> / </span>'
+    +'<span>'+ex((p.title||p.paper_id).slice(0,65))+((p.title||'').length>65?'…':'')+'</span>';
+}
+
+function rfull(p, enrichSource){
+  const cc=(p.concepts||[]).slice(0,12);
+  const aa=(p.authors||[]).slice(0,10);
+  document.getElementById('pc').innerHTML='<div class="article fi">'
+    +'<div class="art-title-block">'
+    +(enrichSource
+      ? '<div class="art-kicker">Research Paper · <span style=\"color:var(--'+(enrichSource==='cache'?'leaf':'ice')+')\">'+( enrichSource==='cache'?'CACHED · local':'LIVE · OpenAlex')+'</span></div>'
+      : '<div class="art-kicker">Research Paper</div>')
+    +'<h1>'+ex(p.title||'Untitled')+'</h1>'
+    +'<div class="art-meta">'
+    +(p.year?'<span class="tag tag-y">'+p.year+'</span>':'')
+    +(p.citation_count?'<span class="tag tag-c">↑ '+p.citation_count.toLocaleString()+' citations</span>':'')
+    +(p.pagerank?'<span class="tag tag-m">PR '+p.pagerank.toFixed(5)+'</span>':'')
+    +'</div>'
+    +(p.journal?'<div class="art-journal">'+ex(p.journal)+'</div>':'')
+    +'</div>'
+    +'<div class="art-body">'
+    +(p.abstract?'<div class="psec"><h2>Abstract</h2><p class="abst">'+ex(p.abstract)+'</p></div>':'')
+    +(aa.length?'<div class="psec"><h2>Authors</h2><div class="al">'+aa.map(a=>'<span class="ac">'+ex(a.name||a)+'</span>').join('')+'</div></div>':'')
+    +(cc.length?'<div class="psec"><h2>Topics &amp; Concepts</h2><div class="cg">'+cc.map(c=>'<span class="cl" onclick="qs(\''+ex(String(c.name || c || "").replace(/'/g,"\\'"))+'\')">'+ex(c.name||c)+'</span>').join('')+'</div></div>':'')
+    +'<div id="sg"><div class="lb"><div class="sp"></div>Loading citation graph…</div></div>'
+    +'<div id="sbr"><div class="lb"><div class="sp"></div>Loading bridges…</div></div>'
+    +'<div id="srl"><div class="lb"><div class="sp"></div>Loading related…</div></div>'
+    +'</div></div>';
+}
+
+function rmeta(p){
+  document.getElementById('pc').innerHTML='<div class="notice"><strong>⚠ Limited Data</strong> — Paper found in citation links but not fully crawled. Fetching from OpenAlex now…</div>'
+    +'<div class="article fi">'
+    +'<div class="art-title-block">'
+    +'<div class="art-kicker">Research Paper · Meta Only</div>'
+    +'<h1>'+ex(p.title||p.paper_id)+'</h1>'
+    +'<div class="art-meta">'+(p.year?'<span class="tag tag-y">'+p.year+'</span>':'')+(p.citation_count?'<span class="tag tag-c">↑ '+p.citation_count.toLocaleString()+'</span>':'')+'</div>'
+    +(p.journal?'<div class="art-journal">'+ex(p.journal)+'</div>':'')
+    +'</div>'
+    +'<div class="art-body">'
+    +'<div id="enr"><div class="enrich-bar"><div class="sp"></div>Fetching abstract, authors, concepts from OpenAlex API…</div></div>'
+    +'<div id="sg"><div class="lb"><div class="sp"></div>Loading citation graph…</div></div>'
+    +'<div id="sbr"><div class="lb"><div class="sp"></div>Loading bridges…</div></div>'
+    +'<div id="srl"><div class="lb"><div class="sp"></div>Loading related…</div></div>'
+    +'</div></div>';
+}
+
+async function enrichoa(pid){
+  // Use our backend cache API — fetches from OpenAlex and stores in nexushub.db
+  // On subsequent views, served instantly from local DB (no API call)
+  try{
+    const r = await fetch(A+'/paper/'+pid+'/enrich');
+    if(!r.ok) throw new Error('enrich failed '+r.status);
+    const d = await r.json();
+    const el = document.getElementById('enr'); if(!el) return;
+
+    if(d.source === 'local_db'){
+      // Paper already fully crawled - shouldn't reach here normally
+      el.innerHTML = '';
+      return;
+    }
+
+    const data = d.data;
+    if(!data){
+      el.innerHTML = '<p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px;padding:8px 0 20px">Not found in OpenAlex. Paper ID: <code>'+pid+'</code></p>';
+      return;
+    }
+
+    const src = d.source === 'cache'
+      ? '<span class="h2-badge" style="color:var(--leaf);border-color:rgba(110,201,154,.3)">CACHED · local</span>'
+      : '<span class="h2-badge">LIVE · OpenAlex</span>';
+
+    el.innerHTML =
+      (data.abstract
+        ? '<div class="psec"><h2>Abstract '+src+'</h2><p class="abst">'+ex(data.abstract)+'</p></div>'
+        : '<p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px;margin-bottom:20px">No abstract in OpenAlex.</p>')
+      + ((data.authors||[]).length
+        ? '<div class="psec"><h2>Authors</h2><div class="al">'+(data.authors).map(a=>'<span class="ac">'+ex(a.name||a)+'</span>').join('')+'</div></div>'
+        : '')
+      + ((data.concepts||[]).length
+        ? '<div class="psec"><h2>Topics &amp; Concepts</h2><div class="cg">'+(data.concepts).slice(0,10).map(c=>'<span class="cl" onclick="qs(\''+ex(String(c.name || c || "").replace(/\'/g,"\\'"))+'\'\')">'+ex(c.name||c)+'</span>').join('')+'</div></div>'
+        : '');
+  }catch(e){
+    const el = document.getElementById('enr');
+    if(el) el.innerHTML = '<p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px;padding:8px 0 20px">Enrichment failed: '+ex(e.message)+'</p>';
+  }
+}
+async function lgraph(pid){
+  try{
+    const d=await fx('/paper/'+pid+'/graph');
+    const el=document.getElementById('sg'); if(!el)return;
+    el.innerHTML='<div class="psec"><h2>Citation Network</h2>'
+      +'<div class="gsec"><div class="g-hdr"><h3>Citation Graph</h3>'
+      +'<span>'+(d.nodes||[]).length+' nodes · '+(d.edges||[]).length+' edges · click any node</span></div>'
+      +'<div id="pgw"><svg id="pgs"></svg>'
+      +'<div class="g-leg">'
+      +'<span><span class="ld" style="background:var(--blood)"></span>Center</span>'
+      +'<span><span class="ld" style="background:var(--ice)"></span>Citing</span>'
+      +'<span><span class="ld" style="background:var(--gold)"></span>Reference</span>'
+      +'</div></div></div></div>';
+    drawg(d,pid);
+  }catch(e){
+    const el=document.getElementById('sg');
+    if(el)el.innerHTML='<div class="psec"><h2>Citation Network</h2><p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px">No graph data available.</p></div>';
+  }
+}
+
+function drawg(data,cid){
+  const svg=d3.select('#pgs'); svg.selectAll('*').remove();
+  const el=document.getElementById('pgw');
+  const W=el.clientWidth||700, H=360;
+  const zoom=d3.zoom().scaleExtent([.2,4]).on('zoom',e=>g.attr('transform',e.transform));
+  svg.call(zoom);
+  const g=svg.append('g');
+  const nodes=(data.nodes||[]).map(n=>({...n,_id:n.id||n.paper_id}));
+  const links=data.edges||[];
+  const sim=d3.forceSimulation(nodes)
+    .force('link',d3.forceLink(links).id(d=>d._id).distance(80).strength(.4))
+    .force('charge',d3.forceManyBody().strength(-130))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide(16));
+  const link=g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(255,255,255,0.06)').attr('stroke-width',1);
+  const ng=g.append('g').selectAll('g').data(nodes).join('g').style('cursor','pointer');
+  ng.append('circle')
+    .attr('r',d=>d._id===cid?14:((d.citation_count||0)>1000?9:6))
+    .attr('fill',d=>d._id===cid?'var(--blood)':d.type==='citing'?'var(--ice)':'var(--gold)')
+    .attr('fill-opacity',d=>d._id===cid?0.95:0.55)
+    .attr('stroke',d=>d._id===cid?'rgba(255,77,28,.4)':'rgba(255,255,255,.08)')
+    .attr('stroke-width',d=>d._id===cid?3:1);
+  ng.filter(d=>d._id===cid||(d.citation_count||0)>2000).append('text')
+    .text(d=>(d.title||'').slice(0,26)+((d.title||'').length>26?'…':''))
+    .attr('font-size',9).attr('fill','rgba(255,255,255,0.35)')
+    .attr('font-family','Syne Mono,monospace')
+    .attr('dy',22).attr('text-anchor','middle').style('pointer-events','none');
+  const tt=document.getElementById('tt');
+  ng.on('mouseover',(e,d)=>{tt.style.display='block';tt.innerHTML='<strong>'+ex((d.title||d._id||'').slice(0,80))+'</strong><br><span style="color:var(--paper4)">'+(d.year||'')+' '+(d.citation_count?'· ↑'+d.citation_count.toLocaleString():'')+'</span>';})
+    .on('mousemove',e=>{tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';})
+    .on('mouseout',()=>tt.style.display='none')
+    .on('click',(e,d)=>opaper(d._id));
+  ng.call(d3.drag()
+    .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+    .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+    .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  sim.on('tick',()=>{
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    ng.attr('transform',d=>'translate('+d.x+','+d.y+')');
+  });
+}
+
+async function lbridges(pid){
+  try{
+    const d=await fx('/paper/'+pid+'/bridges?limit=6');
+    const br=d.bridges||[];
+    const el=document.getElementById('sbr'); if(!el)return;
+    if(!br.length){el.innerHTML='<div class="psec"><h2>Cross-Domain Bridges</h2><p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px">No cross-domain bridges detected.</p></div>';return;}
+    el.innerHTML='<div class="psec"><h2>Cross-Domain Bridges</h2>'
+      +'<p style="font-size:13px;color:var(--paper3);margin-bottom:16px;font-weight:400">Semantically similar papers from different disciplines — potential knowledge bridges.</p>'
+      +br.map(b=>'<div class="bc2" onclick="opaper(\''+b.paper_id+'\')">'
+        +'<div class="bc2-af">'+ex(b.source_field||'—')+'<br>↓<br>'+ex(b.target_field||'—')+'</div>'
+        +'<div><div class="bc2-t">'+ex(b.title||b.paper_id)+'</div>'
+        +'<div class="bc2-m">'+(b.year||'')+' · '+Math.round((b.similarity||0)*100)+'% similar · ↑'+(b.citation_count||0).toLocaleString()+'</div></div></div>').join('')
+      +'</div>';
+  }catch(e){
+    const el=document.getElementById('sbr');
+    if(el)el.innerHTML='<div class="psec"><h2>Cross-Domain Bridges</h2><p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px">Bridge data not available.</p></div>';
+  }
+}
+
+async function lrelated(pid, titleHint){
+  try{
+    let title = titleHint;
+    if(!title){
+      const p = await fx('/paper/'+pid);
+      title = p.title;
+    }
+    if(!title) throw new Error('no title');
+    const w=title.split(' ').slice(0,5).join(' ');
+    const d=await fx('/search?q='+encodeURIComponent(w)+'&limit=10');
+    const rel=(d.results||[]).filter(x=>x.paper_id!==pid).slice(0,6);
+    const el=document.getElementById('srl'); if(!el)return;
+    if(!rel.length){el.innerHTML='<div class="psec"><h2>Related Papers</h2><p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px">No related papers found.</p></div>';return;}
+    el.innerHTML='<div class="psec"><h2>Related Papers</h2>'
+      +rel.map(r=>'<div class="reli" onclick="opaper(\''+r.paper_id+'\')">'
+        +'<div class="relt">'+ex(r.title||'Untitled')+'</div>'
+        +'<div class="relm">'+[r.year,r.journal,r.citation_count?'↑'+r.citation_count.toLocaleString():''].filter(Boolean).join(' · ')+'</div></div>').join('')
+      +'</div>';
+  }catch(e){
+    const el=document.getElementById('srl');
+    if(el)el.innerHTML='<div class="psec"><h2>Related Papers</h2><p style="color:var(--paper4);font-family:\'Syne Mono\',monospace;font-size:12px">Could not load.</p></div>';
+  }
+}
+
+function rsidebar(p){
+  const cc=(p.concepts||[]).slice(0,6);
+  document.getElementById('psc').innerHTML='<div class="ibox"><div class="ibt">Paper Info</div><table class="itbl">'
+    +(p.year?'<tr><td>Year</td><td>'+p.year+'</td></tr>':'')
+    +(p.journal?'<tr><td>Journal</td><td>'+ex(p.journal)+'</td></tr>':'')
+    +(p.citation_count?'<tr><td>Citations</td><td class="hl2">↑ '+p.citation_count.toLocaleString()+'</td></tr>':'')
+    +(p.pagerank?'<tr><td>PageRank</td><td class="hl2">'+p.pagerank.toFixed(6)+'</td></tr>':'')
+    +(p.doi?'<tr><td>DOI</td><td style="font-size:10px;word-break:break-all;font-family:\'Syne Mono\',monospace">'+ex(p.doi)+'</td></tr>':'')
+    +'<tr><td>ID</td><td style="font-size:10px;font-family:\'Syne Mono\',monospace">'+p.paper_id+'</td></tr>'
+    +'</table></div>'
+    +'<div class="ibox"><div class="ibt">Contents</div><div class="toc"><ul class="tocl">'
+    +(p.abstract?'<li class="toci"><span class="tocln" onclick="window.scrollTo(0,0)">Abstract</span></li>':'')
+    +((p.authors||[]).length?'<li class="toci"><span class="tocln">Authors</span></li>':'')
+    +(cc.length?'<li class="toci"><span class="tocln">Topics & Concepts</span></li>':'')
+    +'<li class="toci"><span class="tocln">Citation Network</span></li>'
+    +'<li class="toci"><span class="tocln">Cross-Domain Bridges</span></li>'
+    +'<li class="toci"><span class="tocln">Related Papers</span></li>'
+    +'</ul></div></div>'
+    +(cc.length?'<div class="ibox"><div class="ibt">Concepts</div><div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:5px">'+cc.map(c=>'<span class="cl" style="font-size:11px" onclick="qs(\''+ex(String(c.name || c || "").replace(/'/g,"\\'"))+'\')">'+ex(c.name||c)+'</span>').join('')+'</div></div>':'')
+    +'<div class="ibox"><div class="ibt">Recently Viewed</div><div>'
+    +H.slice().reverse().map(h=>'<div class="srow" onclick="opaper(\''+h.pid+'\')">'
+      +'<div class="si2"><div class="si2-t">'+ex((h.title||h.pid).slice(0,50))+((h.title||'').length>50?'…':'')+'</div></div></div>').join('')
+    +(H.length===0?'<div style="padding:12px 14px;font-family:\'Syne Mono\',monospace;font-size:11px;color:var(--paper4)">No history yet</div>':'')
+    +'</div></div>';
+}
+
+async function loadTrend(){
+  const el=document.getElementById('tl');
+  el.innerHTML='<div class="lb"><div class="sp"></div>Loading…</div>';
+  try{
+    const pp=await fx('/trending?limit=30');
+    el.innerHTML=pp.map((p,i)=>'<div class="ttr" onclick="opaper(\''+p.paper_id+'\')">'
+      +'<div class="tnk '+(i===0?'r1':i===1?'r2':i===2?'r3':'')+'">'+(i+1)+'</div>'
+      +'<div class="tti2">'+ex(p.title||'Untitled')+'</div>'
+      +'<div class="tyr">'+(p.year||'—')+'</div>'
+      +'<div class="tct">'+(p.citation_count?'↑'+p.citation_count.toLocaleString():'—')+'</div>'
+      +'<div class="tpr">'+(p.pagerank||0).toFixed(6)+'</div>'
+      +'</div>').join('');
+  }catch(e){el.innerHTML='<div class="lb" style="color:var(--blood)">Could not load</div>';}
+}
+
+async function loadCacheStats(){
+  try{
+    const s = await fx('/cache/stats');
+    const el = document.getElementById('cacheStatN');
+    if(el) el.textContent = s.cache_success.toLocaleString();
+  }catch(e){}
+}
+
+async function loadHome(){
+  try{
+    const pp=await fx('/trending?limit=20');
+    document.getElementById('fp').innerHTML=pp.slice(0,4).map((p,i)=>'<div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--wire);cursor:pointer;transition:all .15s;align-items:flex-start" '
+      +'onmouseover="this.style.paddingLeft=\'10px\'" onmouseout="this.style.paddingLeft=\'0\'" '
+      +'onclick="opaper(\''+p.paper_id+'\')">'
+      +'<div style="font-family:\'Playfair Display\',serif;font-size:22px;font-weight:700;color:var(--paper4);width:24px;flex-shrink:0;line-height:1.2;padding-top:3px">'+(i+1)+'</div>'
+      +'<div><div style="font-size:14px;font-weight:500;color:var(--ice);margin-bottom:3px;line-height:1.3">'+ex(p.title||'Untitled')+'</div>'
+      +'<div style="font-family:\'Syne Mono\',monospace;font-size:11px;color:var(--paper4)">'+(p.year||'')+' · ↑'+(p.citation_count||0).toLocaleString()+' · PR '+(p.pagerank||0).toFixed(5)+'</div></div></div>').join('')
+      +'<div style="padding-top:10px"><span style="font-family:\'Syne Mono\',monospace;font-size:11px;color:var(--blood);cursor:pointer;letter-spacing:1px" onclick="gotrend()">VIEW FULL RANKING →</span></div>';
+
+    document.getElementById('st2').innerHTML=pp.slice(0,7).map((p,i)=>'<div class="srow" onclick="opaper(\''+p.paper_id+'\')">'
+      +'<div class="srk '+(i===0?'g':i===1?'s':i===2?'b':'')+'">'+(i+1)+'</div>'
+      +'<div class="si2"><div class="si2-t">'+ex((p.title||'').slice(0,52))+((p.title||'').length>52?'…':'')+'</div>'
+      +'<div class="si2-m">'+(p.year||'')+' · PR '+(p.pagerank||0).toFixed(4)+'</div></div></div>').join('');
+
+    const comms=await fx('/communities');
+    document.getElementById('sc2').innerHTML=comms.slice(0,8).map(c=>'<div class="srow" onclick="qs(\''+ex(c.label.split('/')[0].trim())+'\')">'
+      +'<div class="si2"><div class="si2-t">'+ex(c.label)+'</div>'
+      +'<div class="si2-m">'+(c.paper_count||0).toLocaleString()+' papers</div></div></div>').join('');
+  }catch(e){
+    document.getElementById('fp').innerHTML='<div style="padding:14px;font-family:\'Syne Mono\',monospace;font-size:12px;color:var(--paper4)">API offline — start uvicorn to load data</div>';
+  }
+}
+
+loadHome();
+loadCacheStats();
+</script>
+</body>
+</html>
